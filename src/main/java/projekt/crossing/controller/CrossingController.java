@@ -2,8 +2,11 @@ package projekt.crossing.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import projekt.crossing.service.CrossingService;
 import projekt.crossing.dto.StatusResponse;
+import projekt.crossing.model.CrossingEvent;
+import projekt.crossing.service.CrossingService;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/crossing")
@@ -17,30 +20,51 @@ public class CrossingController {
 
     @PostMapping("/train-approach")
     public ResponseEntity<StatusResponse> handleTrainApproach() {
-        StatusResponse response = crossingService.handleTrainApproach();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(crossingService.handleTrainApproach());
+    }
+
+    @PostMapping("/train-passed")
+    public ResponseEntity<StatusResponse> handleTrainPassed() {
+        return ResponseEntity.ok(crossingService.handleTrainPassed());
     }
 
     @PostMapping("/obstacle")
     public ResponseEntity<StatusResponse> handleObstacle() {
-        StatusResponse response = crossingService.handleObstacle();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(crossingService.handleObstacle());
     }
 
     @PostMapping("/emergency-stop")
     public ResponseEntity<StatusResponse> emergencyStop() {
-        StatusResponse response = crossingService.handleEmergencyStop();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(crossingService.handleEmergencyStop());
+    }
+
+    @PostMapping("/hardware-failure")
+    public ResponseEntity<StatusResponse> hardwareFailure() {
+        return ResponseEntity.ok(crossingService.handleHardwareFailure());
+    }
+
+    @PostMapping("/emergency-open")
+    public ResponseEntity<StatusResponse> emergencyOpen() {
+        return ResponseEntity.ok(crossingService.emergencyOpen());
+    }
+
+    @PostMapping("/reset/emergency")
+    public ResponseEntity<StatusResponse> resetFromEmergency() {
+        return ResponseEntity.ok(crossingService.resetFromEmergency());
+    }
+
+    @PostMapping("/reset/error")
+    public ResponseEntity<StatusResponse> resetFromError() {
+        return ResponseEntity.ok(crossingService.resetFromError());
     }
 
     @GetMapping("/status")
     public ResponseEntity<StatusResponse> getStatus() {
-        StatusResponse response = crossingService.getSystemStatus();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(crossingService.getSystemStatus());
     }
-    @PostMapping("/hardware-failure")
-    public ResponseEntity<StatusResponse> HardwareFailure(){
-        StatusResponse response = crossingService.handleHardwareFailure();
-        return ResponseEntity.ok(response);
+
+    @GetMapping("/history")
+    public ResponseEntity<List<CrossingEvent>> getHistory() {
+        return ResponseEntity.ok(crossingService.getHistory());
     }
 }

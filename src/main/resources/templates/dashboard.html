@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pl">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>System Rogatek Kolejowych</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <meta http-equiv="refresh" content="5"/>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚦 System Rogatek Kolejowych</h1>
+
+    <!-- STATUS -->
+    <div class="status-card" id="statusCard" th:classappend="${'status-' + state.toLowerCase()}">
+        <span class="status-label">Aktualny stan:</span>
+        <span class="status-value" id="statusValue" th:text="${state}">OPEN</span>
+    </div>
+
+    <!-- OSTATNIA WIADOMOŚĆ -->
+    <div class="message-box" th:if="${lastMessage != null and !lastMessage.isEmpty()}">
+        <p th:text="${lastMessage}"></p>
+    </div>
+
+    <div class="panels">
+
+        <!-- SYMULACJA CZUJNIKÓW -->
+        <div class="panel">
+            <h2>🔧 Symulacja czujników</h2>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="train-approach"/>
+                <button type="submit" class="btn btn-warning">🚂 Wykryto pociąg</button>
+            </form>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="train-passed"/>
+                <button type="submit" class="btn btn-success">✅ Pociąg przejechał</button>
+            </form>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="obstacle"/>
+                <button type="submit" class="btn btn-danger">🚗 Przeszkoda na torach</button>
+            </form>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="hardware-failure"/>
+                <button type="submit" class="btn btn-danger">⚡ Awaria sprzętu</button>
+            </form>
+        </div>
+
+        <!-- AKCJE OPERATORA -->
+        <div class="panel">
+            <h2>👷 Akcje operatora</h2>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="emergency-stop"/>
+                <button type="submit" class="btn btn-danger">🛑 Zatrzymanie awaryjne</button>
+            </form>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="emergency-open"/>
+                <button type="submit" class="btn btn-warning">🔓 Otwarcie awaryjne</button>
+            </form>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="reset-emergency"/>
+                <button type="submit" class="btn btn-reset">↩️ Reset (z EMERGENCY)</button>
+            </form>
+
+            <form th:action="@{/dashboard/action}" method="post" class="action-form">
+                <input type="hidden" name="action" value="reset-error"/>
+                <button type="submit" class="btn btn-reset">🔄 Reset (z ERROR)</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- HISTORIA ZDARZEŃ -->
+    <div class="panel full-width">
+        <h2>📋 Historia zdarzeń</h2>
+        <div id="historyEmpty" th:if="${#lists.isEmpty(history)}">
+            <p class="empty">Brak zdarzeń.</p>
+        </div>
+        <table id="historyTable" th:if="${!#lists.isEmpty(history)}">
+            <thead>
+            <tr>
+                <th>Czas</th>
+                <th>Stan przed</th>
+                <th>Stan po</th>
+                <th>Wiadomość</th>
+            </tr>
+            </thead>
+            <tbody id="historyBody">
+            <tr th:each="event : ${history}"
+                th:classappend="${'row-' + event.toState.name().toLowerCase()}">
+                <td th:text="${#temporals.format(event.timestamp, 'HH:mm:ss')}"></td>
+                <td><span class="badge" th:classappend="${'badge-' + event.fromState.name().toLowerCase()}"
+                          th:text="${event.fromState}"></span></td>
+                <td><span class="badge" th:classappend="${'badge-' + event.toState.name().toLowerCase()}"
+                          th:text="${event.toState}"></span></td>
+                <td th:text="${event.message}"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+
+</body>
+</html>

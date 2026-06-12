@@ -12,15 +12,25 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ObstacleDetectedException.class)
     public ResponseEntity<StatusResponse> handleObstacle(ObstacleDetectedException ex) {
-        StatusResponse response = new StatusResponse(SystemState.EMERGENCY, ex.getMessage());
-        // Zwracamy 409 Conflict, bo sytuacja na torach koliduje z zamknięciem
-        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+        // 409 Conflict - przeszkoda koliduje z procedurą zamknięcia
+        return new ResponseEntity<>(
+                new StatusResponse(SystemState.EMERGENCY, ex.getMessage()),
+                HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(HardwareFailureException.class)
     public ResponseEntity<StatusResponse> handleHardwareFailure(HardwareFailureException ex) {
-        StatusResponse response = new StatusResponse(SystemState.ERROR, ex.getMessage());
-        // Zwracamy 503 Service Unavailable, bo infrastruktura ma awarię
-        return new ResponseEntity<>(response, HttpStatus.SERVICE_UNAVAILABLE);
+        // 503 Service Unavailable - infrastruktura niesprawna
+        return new ResponseEntity<>(
+                new StatusResponse(SystemState.ERROR, ex.getMessage()),
+                HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @ExceptionHandler(InvalidStateTransitionException.class)
+    public ResponseEntity<StatusResponse> handleInvalidTransition(InvalidStateTransitionException ex) {
+        // 422 Unprocessable Entity - żądana operacja jest logicznie niemożliwa w bieżącym stanie
+        return new ResponseEntity<>(
+                new StatusResponse(null, ex.getMessage()),
+                HttpStatus.UNPROCESSABLE_ENTITY);
     }
 }

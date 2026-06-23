@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="pl">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Weryfikacja 2FA — System Rogatek</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}"/>
+    <style>
+        .totp-card {
+            max-width: 400px;
+            margin: 80px auto;
+            background: #fff;
+            border-radius: 12px;
+            padding: 36px 40px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+            text-align: center;
+        }
+        .totp-card h1 { font-size: 1.4rem; margin-bottom: 8px; color: #1a1a2e; }
+        .totp-card p  { color: #666; font-size: 0.95rem; margin-bottom: 24px; }
+        .icon { font-size: 3rem; margin-bottom: 12px; }
+        .form-group { text-align: left; }
+        .form-group label { display: block; font-size: 0.9rem; color: #555; margin-bottom: 6px; }
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid #ddd;
+            border-radius: 7px;
+            font-size: 1.6rem;
+            letter-spacing: 10px;
+            text-align: center;
+            font-family: monospace;
+        }
+        .form-group input:focus { outline: none; border-color: #2980b9; }
+        .btn-primary { width: 100%; margin-top: 16px; padding: 13px; font-size: 1rem; border-radius: 7px; background: #2980b9; color: #fff; border: none; cursor: pointer; font-weight: 600; }
+        .btn-primary:hover { background: #1f6391; }
+        .alert-error { background: #fdecea; border-left: 4px solid #e74c3c; padding: 10px 14px; border-radius: 6px; color: #c0392b; font-size: 0.9rem; margin-bottom: 16px; text-align: left; }
+        .hint { margin-top: 20px; font-size: 0.82rem; color: #aaa; }
+    </style>
+</head>
+<body>
+<div class="totp-card">
+    <div class="icon">🔑</div>
+    <h1>Weryfikacja dwuetapowa</h1>
+    <p>Wpisz 6-cyfrowy kod z aplikacji uwierzytelniającej.</p>
+
+    <div th:if="${error}" class="alert-error" th:text="${error}"></div>
+    <div th:if="${success}" class="alert-error" style="background:#eafaf1;border-color:#27ae60;color:#1e8449;" th:text="${success}"></div>
+
+    <form th:action="@{/totp/verify}" method="post" class="form-group">
+        <label for="code">Kod jednorazowy</label>
+        <input type="text" id="code" name="code"
+               maxlength="6" inputmode="numeric" pattern="[0-9]{6}"
+               placeholder="000000" autocomplete="one-time-code" autofocus/>
+        <button type="submit" class="btn-primary">🔓 Zaloguj</button>
+    </form>
+
+    <p class="hint">Kod zmienia się co 30 sekund. Upewnij się, że czas na telefonie jest zsynchronizowany.</p>
+</div>
+</body>
+</html>

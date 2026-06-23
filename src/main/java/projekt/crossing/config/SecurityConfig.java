@@ -15,6 +15,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import projekt.crossing.security.MongoUserDetailsService;
 import projekt.crossing.security.RateLimitFilter;
+import projekt.crossing.security.TotpFilter;
 
 import java.util.List;
 
@@ -22,16 +23,19 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final RateLimitFilter rateLimitFilter;
+    private final RateLimitFilter         rateLimitFilter;
+    private final TotpFilter              totpFilter;
     private final MongoUserDetailsService userDetailsService;
-    private final PasswordEncoder passwordEncoder;
+    private final PasswordEncoder         passwordEncoder;
 
     public SecurityConfig(RateLimitFilter rateLimitFilter,
+                          TotpFilter totpFilter,
                           MongoUserDetailsService userDetailsService,
                           PasswordEncoder passwordEncoder) {
-        this.rateLimitFilter = rateLimitFilter;
+        this.rateLimitFilter    = rateLimitFilter;
+        this.totpFilter         = totpFilter;
         this.userDetailsService = userDetailsService;
-        this.passwordEncoder = passwordEncoder;
+        this.passwordEncoder    = passwordEncoder;
     }
 
     @Bean
@@ -61,27 +65,36 @@ public class SecurityConfig {
                                 ref.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp ->
                                 csp.policyDirectives(
-                                        "default-src 'self'; style-src 'self'; frame-ancestors 'self'"))
+                                        "default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'self'"))
                 )
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/css/**").permitAll()
+                        .requestMatchers("/totp/**").authenticated()
                         .requestMatchers("/dashboard/**").authenticated()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
 
                 .formLogin(form -> form
-                        .defaultSuccessUrl("/dashboard", true)
+                        // BEZ defaultSuccessUrl — TotpFilter przekieruje na /totp/verify,
+                        // a po weryfikacji SavedRequest wróci na oryginalny URL
                         .permitAll())
 
                 .logout(logout -> logout
                         .logoutSuccessUrl("/login?logout")
+                        .addLogoutHandler((req, res, auth) -> {
+                            var session = req.getSession(false);
+                            if (session != null) {
+                                session.removeAttribute("TOTP_VERIFIED");
+                            }
+                        })
                         .permitAll())
 
                 .httpBasic(basic -> {})
 
-                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(totpFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

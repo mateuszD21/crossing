@@ -1,0 +1,246 @@
+
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    .wrap { padding: 1rem 0; font-size: 14px; color: var(--color-text-primary); }
+    canvas { display: block; width: 100%; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .controls button { font-size: 13px; padding: 6px 14px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; }
+    .controls button:hover:not(:disabled) { background: var(--color-background-secondary); }
+    .controls button:disabled { opacity: .35; cursor: default; }
+    .controls button.danger { border-color: var(--color-border-danger); color: var(--color-text-danger); }
+    .controls button.danger:hover:not(:disabled) { background: var(--color-background-danger); }
+    .speed-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--color-text-secondary); }
+    .speed-row input { flex: 1; }
+    .speed-val { min-width: 64px; font-weight: 500; color: var(--color-text-primary); }
+    .log { margin-top: 10px; max-height: 110px; overflow-y: auto; font-size: 12px; font-family: var(--font-mono, monospace); background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 10px; border: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); line-height: 1.7; }
+    .log .w { color: var(--color-text-warning); }
+    .log .e { color: var(--color-text-danger); }
+    .log .o { color: var(--color-text-success); }
+</style>
+<div class="wrap">
+    <canvas id="c" height="260"></canvas>
+    <div class="speed-row">
+        <span>Prędkość pociągu:</span>
+        <input type="range" id="spd" min="20" max="200" value="80" step="5">
+        <span class="speed-val" id="spdval">80 km/h</span>
+    </div>
+    <div class="controls">
+        <button id="b-spawn">🚆 Wyślij pociąg</button>
+        <button id="b-obs" class="danger">⚠️ Przeszkoda</button>
+        <button id="b-es"  class="danger">🛑 Stop awaryjny</button>
+        <button id="b-hw"  class="danger">⚡ Awaria sprzętu</button>
+        <button id="b-rst">🔄 Reset</button>
+    </div>
+    <div class="log" id="log"></div>
+</div>
+<script>
+    const API_BASE = null; // np. '/api/crossing'
+
+    const cv = document.getElementById('c');
+    const ctx = cv.getContext('2d');
+    const W = 680, H = 260;
+    cv.width = W; cv.height = H;
+
+    const TRACK_Y  = H / 2;
+    const ROAD_X   = W / 2;
+    const ROAD_W   = 50;
+    const RAIL_GAP = 14;
+    const SENS_L   = ROAD_X - 140;
+    const SENS_R   = ROAD_X + 140;
+    const TRAIN_W  = 70;
+
+    let sysState = 'OPEN';
+    let train    = null;  // { x, speed, dir, triggeredL, triggeredR, passed }
+    let logs     = [];
+
+    const STATE_COLORS = { OPEN:'#22aa44', WARNING:'#e0a020', CLOSED:'#cc3010', EMERGENCY:'#cc1010', ERROR:'#888' };
+    const STATE_LABELS = { OPEN:'OPEN — przejazd wolny', WARNING:'WARNING — sygnalizacja aktywna', CLOSED:'CLOSED — rogatki zamknięte', EMERGENCY:'EMERGENCY — tryb awaryjny', ERROR:'ERROR — awaria systemu' };
+
+    document.getElementById('spd').oninput = function() {
+      document.getElementById('spdval').textContent = this.value + ' km/h';
+    };
+
+    function log(msg, cls='') {
+      const t = new Date().toLocaleTimeString('pl', { hour12: false });
+      logs.unshift({ t, msg, cls });
+      if (logs.length > 60) logs.pop();
+      document.getElementById('log').innerHTML = logs.slice(0,25).map(e=>`<div class="${e.cls}">[${e.t}] ${e.msg}</div>`).join('');
+    }
+
+    function applyState(s, msg) {
+      sysState = s;
+      log(msg || s, s==='EMERGENCY'||s==='ERROR'?'e':s==='WARNING'?'w':s==='OPEN'?'o':'');
+      refreshButtons();
+    }
+
+    function refreshButtons() {
+      document.getElementById('b-spawn').disabled = !!train || sysState !== 'OPEN';
+      document.getElementById('b-obs').disabled   = sysState === 'ERROR';
+      document.getElementById('b-es').disabled    = sysState === 'EMERGENCY' || sysState === 'ERROR';
+      document.getElementById('b-hw').disabled    = sysState === 'ERROR';
+    }
+
+    function localApproach(speed) {
+      if (sysState !== 'OPEN') { log('System nie w stanie OPEN — ignoruję.','w'); return; }
+      const safe = speed > 120 ? Math.max(10, Math.round(30*120/speed)) : 30;
+      applyState('WARNING', `Czujnik: pociąg ${speed} km/h. Czas do zamknięcia: ${safe}s`);
+      setTimeout(() => { if (sysState==='WARNING') applyState('CLOSED','Rogatki zamknięte.'); }, 1200);
+    }
+
+    async function api(path, method='POST') {
+      try {
+        const r = await fetch(API_BASE+path, { method });
+        if (!r.ok) { log(`HTTP ${r.status} (${path})`,'e'); return null; }
+        return await r.json();
+      } catch(e) { log('Błąd sieci: '+e.message,'e'); return null; }
+    }
+
+    function cmd(localFn, apiPath, apiMethod='POST') {
+      if (API_BASE) api(apiPath, apiMethod).then(d => { if(d) applyState(d.state, d.message); });
+      else localFn();
+    }
+
+    document.getElementById('b-spawn').onclick = () => {
+      if (train || sysState !== 'OPEN') return;
+      const dir = Math.random() > 0.5 ? 1 : -1;
+      const spd = Number(document.getElementById('spd').value);
+      train = { x: dir>0 ? -TRAIN_W : W+TRAIN_W, speed: spd*dir, dir, triggeredL:false, triggeredR:false, passed:false };
+      log(`Pociąg z ${dir>0?'lewej':'prawej'} (${spd} km/h)`);
+      refreshButtons();
+    };
+    document.getElementById('b-obs').onclick = () => cmd(() => applyState('EMERGENCY','ALARM: Wykryto przeszkodę na torach!'), '/obstacle');
+    document.getElementById('b-es').onclick  = () => cmd(() => applyState('EMERGENCY','Aktywowano zatrzymanie awaryjne.'),    '/emergency-stop');
+    document.getElementById('b-hw').onclick  = () => cmd(() => applyState('ERROR','AWARIA SPRZĘTU: Brak sygnału!'),           '/hardware-failure');
+    document.getElementById('b-rst').onclick = () => cmd(() => { train=null; applyState('OPEN','System zresetowany.'); }, '/open');
+
+    function drawScene() {
+      const col     = STATE_COLORS[sysState] || '#888';
+      const isDark  = matchMedia('(prefers-color-scheme: dark)').matches;
+
+      ctx.fillStyle = isDark ? '#1a1a1a' : '#f5f5f0';
+      ctx.fillRect(0, 0, W, H);
+
+      // Droga
+      ctx.fillStyle = isDark ? '#2a2a2a' : '#d0d0d0';
+      ctx.fillRect(ROAD_X - ROAD_W/2, 0, ROAD_W, H);
+      ctx.save();
+      ctx.setLineDash([12,10]);
+      ctx.strokeStyle = '#f0d020';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ROAD_X, 0);            ctx.lineTo(ROAD_X, TRACK_Y-20); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ROAD_X, TRACK_Y+20);   ctx.lineTo(ROAD_X, H);          ctx.stroke();
+      ctx.restore();
+
+      // Podsypka
+      ctx.fillStyle = isDark ? '#3a3020' : '#b0a080';
+      ctx.fillRect(0, TRACK_Y-18, W, 36);
+      // Podkłady
+      ctx.strokeStyle = isDark ? '#5a4030' : '#7a5a30';
+      ctx.lineWidth = 3;
+      for (let x=10; x<W; x+=24) {
+        ctx.beginPath(); ctx.moveTo(x, TRACK_Y-14); ctx.lineTo(x, TRACK_Y+14); ctx.stroke();
+      }
+      // Szyny
+      ctx.strokeStyle = '#aaa'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(0, TRACK_Y-RAIL_GAP/2); ctx.lineTo(W, TRACK_Y-RAIL_GAP/2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, TRACK_Y+RAIL_GAP/2); ctx.lineTo(W, TRACK_Y+RAIL_GAP/2); ctx.stroke();
+
+      // Czujniki
+      [SENS_L, SENS_R].forEach(sx => {
+        const active = sysState === 'OPEN';
+        ctx.fillStyle = active ? '#22cc44' : '#555';
+        ctx.beginPath(); ctx.arc(sx, TRACK_Y, 7, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = isDark ? '#111' : '#fff'; ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = active ? '#22cc44' : '#777';
+        ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('CZUJNIK', sx, TRACK_Y-22);
+      });
+
+      // Rogatki
+      const bw = 10, bh = 38;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.roundRect(ROAD_X-ROAD_W/2-bw-2, TRACK_Y-20-bh, bw, bh, 3); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(ROAD_X+ROAD_W/2+2,    TRACK_Y-20-bh, bw, bh, 3); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(ROAD_X-ROAD_W/2-bw-2, TRACK_Y+20,    bw, bh, 3); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(ROAD_X+ROAD_W/2+2,    TRACK_Y+20,    bw, bh, 3); ctx.fill();
+
+      // Pociąg
+      if (train) {
+        const tx = train.x;
+        const d  = train.dir;
+        ctx.fillStyle = '#2255aa';
+        ctx.beginPath(); ctx.roundRect(tx-(d>0?TRAIN_W:0), TRACK_Y-9, TRAIN_W, 18, 3); ctx.fill();
+        ctx.fillStyle = '#143070';
+        ctx.beginPath(); ctx.roundRect(d>0 ? tx-TRAIN_W : tx-0, TRACK_Y-13, 14, 22, 3); ctx.fill();
+      }
+
+      // Pasek stanu
+      ctx.fillStyle = col+'22';
+      ctx.beginPath(); ctx.roundRect(12,10,W-24,34,6); ctx.fill();
+      ctx.strokeStyle = col+'88'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect(12,10,W-24,34,6); ctx.stroke();
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(34,27,7,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = isDark ? '#eee' : '#222';
+      ctx.font = '500 13px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(STATE_LABELS[sysState]||sysState, 50, 32);
+
+      // Miganie
+      if ((sysState==='EMERGENCY'||sysState==='WARNING') && Math.sin(Date.now()/200)>0) {
+        ctx.fillStyle = col+'18';
+        ctx.fillRect(0,0,W,H);
+      }
+    }
+
+    let last = 0;
+    function frame(ts) {
+      const dt = Math.min((ts-last)/1000, 0.1); last = ts;
+
+      if (train) {
+        const prev = train.x;
+        train.x += train.speed * dt * 0.7;
+        const d = train.dir;
+
+        // Czujnik wejściowy (ten po stronie skąd jedzie)
+        if (!train.triggeredL && d > 0 && prev < SENS_L && train.x >= SENS_L) {
+          train.triggeredL = true;
+          cmd(() => localApproach(Math.abs(train.speed)), `/train-approach?speed=${Math.abs(train.speed)}`);
+          log(`Czujnik lewy aktywowany`,'w');
+        }
+        if (!train.triggeredR && d < 0 && prev > SENS_R && train.x <= SENS_R) {
+          train.triggeredR = true;
+          cmd(() => localApproach(Math.abs(train.speed)), `/train-approach?speed=${Math.abs(train.speed)}`);
+          log(`Czujnik prawy aktywowany`,'w');
+        }
+
+        // Czujnik wyjściowy — pociąg wyjechał z przejazdu, otwieramy
+        if (!train.passed) {
+          const exitedRight = d > 0 && train.x - TRAIN_W > SENS_R;
+          const exitedLeft  = d < 0 && train.x + TRAIN_W < SENS_L;
+          if (exitedRight || exitedLeft) {
+            train.passed = true;
+            log('Pociąg wyjechał z przejazdu.','o');
+            if (sysState === 'CLOSED') {
+              setTimeout(() => {
+                if (sysState === 'CLOSED') cmd(() => applyState('OPEN','Przejazd otwarty.'), '/open');
+              }, 1000);
+            }
+          }
+        }
+
+        // Znika dopiero po zjechaniu całkowicie poza ekran
+        if (train.x > W+TRAIN_W+10 || train.x < -TRAIN_W-10) {
+          train = null;
+          refreshButtons();
+        }
+      }
+
+      drawScene();
+      requestAnimationFrame(frame);
+    }
+
+    refreshButtons();
+    log('System uruchomiony — stan: OPEN','o');
+    requestAnimationFrame(t => { last=t; frame(t); });
+</script>

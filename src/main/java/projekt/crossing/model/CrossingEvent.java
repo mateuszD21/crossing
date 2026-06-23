@@ -1,28 +1,19 @@
 package projekt.crossing.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "crossing_events")
+@Document(collection = "crossing_events")
 public class CrossingEvent {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private SystemState fromState;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private SystemState toState;
-
-    @Column(nullable = false, length = 512)
     private String message;
-
-    @Column(nullable = false)
     private LocalDateTime timestamp;
 
     protected CrossingEvent() {}
@@ -34,7 +25,7 @@ public class CrossingEvent {
         this.timestamp = LocalDateTime.now();
     }
 
-    public Long getId() { return id; }
+    public String getId() { return id; }
     public SystemState getFromState() { return fromState; }
     public SystemState getToState() { return toState; }
     public String getMessage() { return message; }

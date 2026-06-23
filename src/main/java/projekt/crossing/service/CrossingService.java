@@ -42,7 +42,6 @@ public class CrossingService {
     // wstrzykiwane bezpośrednio do zapytań SQL.
     // -------------------------------------------------------------------------
 
-    @Transactional
     private synchronized void transition(SystemState target, String message) {
         if (!currentState.canTransitionTo(target)) {
             throw new InvalidStateTransitionException(currentState, target);
@@ -58,7 +57,6 @@ public class CrossingService {
     // Operacje publiczne
     // -------------------------------------------------------------------------
 
-    @Transactional
     public synchronized StatusResponse handleTrainApproach() {
         String msg = "Wykryto pociąg. Uruchomiono sygnalizację. Rogatki zamkną się za "
                 + CLOSING_SIMULATION_SECONDS + "s.";
@@ -101,42 +99,36 @@ public class CrossingService {
         }
     }
 
-    @Transactional
     public synchronized StatusResponse handleObstacle() {
         String msg = "ALARM: Wykryto przeszkodę na torach!";
         transition(SystemState.EMERGENCY, msg);
         throw new ObstacleDetectedException(msg);
     }
 
-    @Transactional
     public synchronized StatusResponse handleEmergencyStop() {
         String msg = "Aktywowano zatrzymanie awaryjne.";
         transition(SystemState.EMERGENCY, msg);
         return new StatusResponse(currentState, msg);
     }
 
-    @Transactional
     public synchronized StatusResponse handleHardwareFailure() {
         String msg = "AWARIA SPRZĘTU: Brak sygnału zamknięcia rogatek!";
         transition(SystemState.ERROR, msg);
         throw new HardwareFailureException(msg);
     }
 
-    @Transactional
     public synchronized StatusResponse emergencyOpen() {
         String msg = "Otwarcie awaryjne wykonane przez operatora.";
         transition(SystemState.OPEN, msg);
         return new StatusResponse(currentState, msg);
     }
 
-    @Transactional
     public synchronized StatusResponse resetFromEmergency() {
         String msg = "Tryb awaryjny zakończony. System przywrócony do OPEN przez operatora.";
         transition(SystemState.OPEN, msg);
         return new StatusResponse(currentState, msg);
     }
 
-    @Transactional
     public synchronized StatusResponse resetFromError() {
         String msg = "System zresetowany z trybu ERROR do OPEN przez operatora.";
         transition(SystemState.OPEN, msg);
@@ -148,7 +140,6 @@ public class CrossingService {
                 "Status systemu OK. Dozwolone przejścia: " + currentState.getAllowedTransitions());
     }
 
-    @Transactional(readOnly = true)
     public List<CrossingEvent> getHistory() {
         return eventRepository.findAllByOrderByTimestampDesc();
     }

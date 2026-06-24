@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>System Rogatek Kolejowych</title>
     <link rel="stylesheet" th:href="@{/css/style.css}"/>
-    <meta http-equiv="refresh" content="5"/>
 </head>
 <body>
 
@@ -15,11 +14,6 @@
     <div class="status-card" id="statusCard" th:classappend="${'status-' + state.toLowerCase()}">
         <span class="status-label">Aktualny stan:</span>
         <span class="status-value" id="statusValue" th:text="${state}">OPEN</span>
-    </div>
-
-    <!-- OSTATNIA WIADOMOŚĆ -->
-    <div class="message-box" th:if="${lastMessage != null and !lastMessage.isEmpty()}">
-        <p th:text="${lastMessage}"></p>
     </div>
 
     <div class="panels">
@@ -63,15 +57,6 @@
                 <button type="submit" class="btn btn-warning">🔓 Otwarcie awaryjne</button>
             </form>
 
-            <form th:action="@{/dashboard/action}" method="post" class="action-form">
-                <input type="hidden" name="action" value="reset-emergency"/>
-                <button type="submit" class="btn btn-reset">↩️ Reset (z EMERGENCY)</button>
-            </form>
-
-            <form th:action="@{/dashboard/action}" method="post" class="action-form">
-                <input type="hidden" name="action" value="reset-error"/>
-                <button type="submit" class="btn btn-reset">🔄 Reset (z ERROR)</button>
-            </form>
         </div>
     </div>
 
@@ -105,7 +90,67 @@
     </div>
 </div>
 
+<script>
+    const es = new EventSource('/api/crossing/stream', { withCredentials: true });
 
+    es.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    const state = data.state;
+
+    document.getElementById('statusValue').textContent = state;
+
+    const card = document.getElementById('statusCard');
+    card.className = 'status-card status-' + state.toLowerCase();
+
+    // Wyczyść lastMessage przy każdej zmianie stanu
+    const msgBox = document.querySelector('.message-box');
+    if (msgBox) msgBox.style.display = 'none';
+
+    refreshHistory();
+};
+
+    es.onerror = function() {
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    };
+
+    async function refreshHistory() {
+        try {
+            const res = await fetch('/api/crossing/history');
+            const events = await res.json();
+
+            const tbody = document.getElementById('historyBody');
+            const empty = document.getElementById('historyEmpty');
+            const table = document.getElementById('historyTable');
+
+            if (events.length === 0) {
+                if (table) table.style.display = 'none';
+                if (empty) empty.style.display = 'block';
+                return;
+            }
+
+            if (empty) empty.style.display = 'none';
+            if (table) table.style.display = 'table';
+
+            tbody.innerHTML = events.map(e => `
+                <tr class="row-${e.toState.toLowerCase()}">
+                    <td>${formatTime(e.timestamp)}</td>
+                    <td><span class="badge badge-${e.fromState.toLowerCase()}">${e.fromState}</span></td>
+                    <td><span class="badge badge-${e.toState.toLowerCase()}">${e.toState}</span></td>
+                    <td>${e.message}</td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            console.error('Błąd odświeżania historii:', err);
+        }
+    }
+
+    function formatTime(timestamp) {
+        const d = new Date(timestamp);
+        return d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+</script>
 
 </body>
 </html>

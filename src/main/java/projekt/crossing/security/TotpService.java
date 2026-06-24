@@ -53,22 +53,6 @@ public class TotpService {
         }
     }
 
-    /**
-     * Zwraca URL do Google Chart API generującego QR kod.
-     * Aplikacje jak Google Authenticator / Aegis rozpoznają format otpauth://.
-     */
-    public String getQrUrl(String username, String secret, String issuer) {
-        String label   = encode(issuer + ":" + username);
-        String iss     = encode(issuer);
-        String sec     = encode(secret);
-        String otpauth = "otpauth://totp/" + label
-                + "?secret=" + sec
-                + "&issuer=" + iss
-                + "&algorithm=SHA1&digits=6&period=30";
-        // Google Chart – prosty, bez zewnętrznych zależności JS
-        return "https://chart.googleapis.com/chart?chs=200x200&chld=M|0&cht=qr&chl="
-                + encode(otpauth);
-    }
     public String getQrBase64(String username, String secret, String issuer) {
         try {
             String otpauth = "otpauth://totp/"

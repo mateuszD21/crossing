@@ -20,18 +20,4 @@ public class UserConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-    @Bean
-    public UserDetailsService userDetailsService(PasswordEncoder encoder) {
-        return new InMemoryUserDetailsManager(
-                User.withUsername("operator")
-                        .password(encoder.encode("operator123"))
-                        .roles("OPERATOR")
-                        .build(),
-                User.withUsername("admin")
-                        .password(encoder.encode("admin123"))
-                        .roles("ADMIN", "OPERATOR")
-                        .build()
-        );
-    }
 }

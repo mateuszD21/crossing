@@ -3,7 +3,7 @@ package projekt.crossing.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import projekt.crossing.dto.StatusResponse;
 import projekt.crossing.exception.HardwareFailureException;
 import projekt.crossing.exception.InvalidStateTransitionException;
@@ -12,7 +12,9 @@ import projekt.crossing.model.CrossingEvent;
 import projekt.crossing.model.SystemState;
 import projekt.crossing.repository.CrossingEventRepository;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,9 +22,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class CrossingService {
 
-    private static final Logger log = LoggerFactory.getLogger(CrossingService.class);
+    public static final Logger log = LoggerFactory.getLogger(CrossingService.class);
 
-    // Czasy symulacji (sekundy)
     private static final int CLOSING_SIMULATION_SECONDS = 5;
     private static final int OPENING_SIMULATION_SECONDS = 5;
 
@@ -30,16 +31,52 @@ public class CrossingService {
 
     private final CrossingEventRepository eventRepository;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
     public CrossingService(CrossingEventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
     // -------------------------------------------------------------------------
-    // Automat stanów - centralna metoda przejścia (Detka)
-    // Ochrona przed SQL Injection: zapis do bazy odbywa się wyłącznie przez
-    // JPA/Hibernate z użyciem prepared statements - parametry nigdy nie są
-    // wstrzykiwane bezpośrednio do zapytań SQL.
+    // SSE
+    // -------------------------------------------------------------------------
+
+    public SseEmitter subscribe() {
+        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
+        emitters.add(emitter);
+
+        emitter.onCompletion(() -> emitters.remove(emitter));
+        emitter.onTimeout(() -> emitters.remove(emitter));
+        emitter.onError(e -> emitters.remove(emitter));
+
+        // Wyślij aktualny stan od razu po podłączeniu
+        try {
+            emitter.send(SseEmitter.event()
+                    .data(new StatusResponse(currentState, "Połączono. Stan: " + currentState)));
+        } catch (Exception e) {
+            emitters.remove(emitter);
+        }
+
+        return emitter;
+    }
+
+    private void notifyClients() {
+        List<SseEmitter> deadEmitters = new ArrayList<>();
+
+        emitters.forEach(emitter -> {
+            try {
+                emitter.send(SseEmitter.event()
+                        .data(new StatusResponse(currentState, "Zmiana stanu: " + currentState)));
+            } catch (Exception e) {
+                deadEmitters.add(emitter);
+            }
+        });
+
+        emitters.removeAll(deadEmitters);
+    }
+
+    // -------------------------------------------------------------------------
+    // Automat stanów
     // -------------------------------------------------------------------------
 
     private synchronized void transition(SystemState target, String message) {
@@ -48,9 +85,9 @@ public class CrossingService {
         }
         SystemState previous = currentState;
         currentState = target;
-        // Zapis przez JPA - automatyczna ochrona przed SQL Injection
         eventRepository.save(new CrossingEvent(previous, target, message));
         log.info("Zmiana stanu: {} -> {} | {}", previous, target, message);
+        notifyClients();
     }
 
     // -------------------------------------------------------------------------
@@ -119,18 +156,6 @@ public class CrossingService {
 
     public synchronized StatusResponse emergencyOpen() {
         String msg = "Otwarcie awaryjne wykonane przez operatora.";
-        transition(SystemState.OPEN, msg);
-        return new StatusResponse(currentState, msg);
-    }
-
-    public synchronized StatusResponse resetFromEmergency() {
-        String msg = "Tryb awaryjny zakończony. System przywrócony do OPEN przez operatora.";
-        transition(SystemState.OPEN, msg);
-        return new StatusResponse(currentState, msg);
-    }
-
-    public synchronized StatusResponse resetFromError() {
-        String msg = "System zresetowany z trybu ERROR do OPEN przez operatora.";
         transition(SystemState.OPEN, msg);
         return new StatusResponse(currentState, msg);
     }

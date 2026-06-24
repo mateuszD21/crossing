@@ -10,6 +10,8 @@ import projekt.crossing.exception.InvalidStateTransitionException;
 import projekt.crossing.exception.ObstacleDetectedException;
 import projekt.crossing.service.CrossingService;
 
+import static projekt.crossing.service.CrossingService.log;
+
 @Controller
 @RequestMapping("/dashboard")
 public class DashboardController {
@@ -31,26 +33,18 @@ public class DashboardController {
     @PostMapping("/action")
     public String handleAction(@RequestParam String action,
                                RedirectAttributes redirectAttributes) {
-        String message;
         try {
-            message = switch (action) {
-                case "train-approach"   -> crossingService.handleTrainApproach().getMessage();
-                case "train-passed"     -> crossingService.handleTrainPassed().getMessage();
-                case "emergency-stop"   -> crossingService.handleEmergencyStop().getMessage();
-                case "emergency-open"   -> crossingService.emergencyOpen().getMessage();
-                case "reset-emergency"  -> crossingService.resetFromEmergency().getMessage();
-                case "reset-error"      -> crossingService.resetFromError().getMessage();
-                case "obstacle"         -> { crossingService.handleObstacle(); yield ""; }
-                case "hardware-failure" -> { crossingService.handleHardwareFailure(); yield ""; }
-                default                 -> "Nieznana akcja.";
-            };
-        } catch (ObstacleDetectedException | HardwareFailureException e) {
-            message = e.getMessage();
-        } catch (InvalidStateTransitionException e) {
-            message = "⛔ " + e.getMessage();
+            switch (action) {
+                case "train-approach"   -> crossingService.handleTrainApproach();
+                case "train-passed"     -> crossingService.handleTrainPassed();
+                case "emergency-stop"   -> crossingService.handleEmergencyStop();
+                case "emergency-open"   -> crossingService.emergencyOpen();
+                case "obstacle"         -> crossingService.handleObstacle();
+                case "hardware-failure" -> crossingService.handleHardwareFailure();
+            }
+        } catch (Exception e) {
+            log.warn("Akcja '{}' zakończona wyjątkiem: {}", action, e.getMessage());
         }
-
-        redirectAttributes.addFlashAttribute("lastMessage", message);
         return "redirect:/dashboard";
     }
 }

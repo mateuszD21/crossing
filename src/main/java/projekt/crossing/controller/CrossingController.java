@@ -5,7 +5,8 @@ import org.springframework.web.bind.annotation.*;
 import projekt.crossing.dto.StatusResponse;
 import projekt.crossing.model.CrossingEvent;
 import projekt.crossing.service.CrossingService;
-
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 
 @RestController
@@ -47,17 +48,6 @@ public class CrossingController {
     public ResponseEntity<StatusResponse> emergencyOpen() {
         return ResponseEntity.ok(crossingService.emergencyOpen());
     }
-
-    @PostMapping("/reset/emergency")
-    public ResponseEntity<StatusResponse> resetFromEmergency() {
-        return ResponseEntity.ok(crossingService.resetFromEmergency());
-    }
-
-    @PostMapping("/reset/error")
-    public ResponseEntity<StatusResponse> resetFromError() {
-        return ResponseEntity.ok(crossingService.resetFromError());
-    }
-
     @GetMapping("/status")
     public ResponseEntity<StatusResponse> getStatus() {
         return ResponseEntity.ok(crossingService.getSystemStatus());
@@ -66,5 +56,9 @@ public class CrossingController {
     @GetMapping("/history")
     public ResponseEntity<List<CrossingEvent>> getHistory() {
         return ResponseEntity.ok(crossingService.getHistory());
+    }
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream() {
+        return crossingService.subscribe();
     }
 }

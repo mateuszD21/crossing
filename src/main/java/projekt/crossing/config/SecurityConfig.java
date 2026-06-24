@@ -65,7 +65,7 @@ public class SecurityConfig {
                                 ref.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp ->
                                 csp.policyDirectives(
-                                        "default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'self'"))
+                                        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self' data:; frame-ancestors 'self'"))
                 )
 
                 .authorizeHttpRequests(auth -> auth

@@ -26,10 +26,6 @@ public class TotpController {
         this.userRepository = userRepository;
     }
 
-    // -------------------------------------------------------------------------
-    // SETUP — generowanie QR (tylko gdy 2FA jeszcze nie włączone)
-    // -------------------------------------------------------------------------
-
     @GetMapping("/setup")
     public String setupPage(@AuthenticationPrincipal UserDetails principal,
                             HttpSession session,
@@ -38,11 +34,9 @@ public class TotpController {
         User user = findUser(principal.getUsername());
 
         if (user.isTotpEnabled()) {
-            // 2FA już aktywne — idź do weryfikacji
             return "redirect:/totp/verify";
         }
 
-        // Generuj tymczasowy secret (zapisz w sesji, nie w DB — do momentu potwierdzenia)
         String secret = (String) session.getAttribute(SESSION_SETUP_SECRET);
         if (secret == null) {
             secret = totpService.generateSecret();
@@ -50,7 +44,7 @@ public class TotpController {
         }
 
         model.addAttribute("qrBase64", totpService.getQrBase64(user.getUsername(), secret, "SystemRogatki"));
-        model.addAttribute("secret", secret); // wyświetlony tekstowo jako fallback
+        model.addAttribute("secret", secret);
         return "totp-setup";
     }
 
@@ -68,7 +62,6 @@ public class TotpController {
             return "redirect:/totp/setup";
         }
 
-        // Kod poprawny — zapisz secret do DB i włącz 2FA
         User user = findUser(principal.getUsername());
         user.setTotpSecret(secret);
         user.setTotpEnabled(true);
@@ -81,13 +74,8 @@ public class TotpController {
         return "redirect:/dashboard";
     }
 
-    // -------------------------------------------------------------------------
-    // VERIFY — weryfikacja kodu przy każdym logowaniu
-    // -------------------------------------------------------------------------
-
     @GetMapping("/verify")
     public String verifyPage(HttpSession session) {
-        // Jeśli już zweryfikowany w tej sesji — pomiń
         if (Boolean.TRUE.equals(session.getAttribute(SESSION_TOTP_OK))) {
             return "redirect:/dashboard";
         }
@@ -103,7 +91,6 @@ public class TotpController {
         User user = findUser(principal.getUsername());
 
         if (!user.isTotpEnabled()) {
-            // 2FA nie skonfigurowane — wejdź do setup
             return "redirect:/totp/setup";
         }
 
@@ -115,8 +102,6 @@ public class TotpController {
         session.setAttribute(SESSION_TOTP_OK, true);
         return "redirect:/dashboard";
     }
-
-    // -------------------------------------------------------------------------
 
     private User findUser(String username) {
         return userRepository.findByUsername(username)

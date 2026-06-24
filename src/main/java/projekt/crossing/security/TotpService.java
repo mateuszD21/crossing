@@ -71,9 +71,6 @@ public class TotpService {
             throw new RuntimeException("Błąd generowania QR", e);
         }
     }
-    // -------------------------------------------------------------------------
-    // Prywatne
-    // -------------------------------------------------------------------------
 
     private int generateTotp(String base32Secret, long counter) {
         try {

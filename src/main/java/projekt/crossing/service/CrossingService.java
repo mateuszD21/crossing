@@ -37,10 +37,6 @@ public class CrossingService {
         this.eventRepository = eventRepository;
     }
 
-    // -------------------------------------------------------------------------
-    // SSE
-    // -------------------------------------------------------------------------
-
     public SseEmitter subscribe() {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         emitters.add(emitter);
@@ -49,7 +45,6 @@ public class CrossingService {
         emitter.onTimeout(() -> emitters.remove(emitter));
         emitter.onError(e -> emitters.remove(emitter));
 
-        // Wyślij aktualny stan od razu po podłączeniu
         try {
             emitter.send(SseEmitter.event()
                     .data(new StatusResponse(currentState, "Połączono. Stan: " + currentState)));
@@ -75,9 +70,6 @@ public class CrossingService {
         emitters.removeAll(deadEmitters);
     }
 
-    // -------------------------------------------------------------------------
-    // Automat stanów
-    // -------------------------------------------------------------------------
 
     private synchronized void transition(SystemState target, String message) {
         if (!currentState.canTransitionTo(target)) {
@@ -89,10 +81,6 @@ public class CrossingService {
         log.info("Zmiana stanu: {} -> {} | {}", previous, target, message);
         notifyClients();
     }
-
-    // -------------------------------------------------------------------------
-    // Operacje publiczne
-    // -------------------------------------------------------------------------
 
     public synchronized StatusResponse handleTrainApproach() {
         String msg = "Wykryto pociąg. Uruchomiono sygnalizację. Rogatki zamkną się za "

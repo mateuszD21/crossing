@@ -76,10 +76,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                .formLogin(form -> form
-                        // BEZ defaultSuccessUrl — TotpFilter przekieruje na /totp/verify,
-                        // a po weryfikacji SavedRequest wróci na oryginalny URL
-                        .permitAll())
+                .formLogin(form -> form.permitAll())
 
                 .logout(logout -> logout
                         .logoutSuccessUrl("/login?logout")

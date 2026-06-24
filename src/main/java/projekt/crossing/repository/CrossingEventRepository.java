@@ -10,5 +10,4 @@ import java.util.List;
 @Repository
 public interface CrossingEventRepository extends MongoRepository<CrossingEvent, Long> {
     List<CrossingEvent> findAllByOrderByTimestampDesc();
-    List<CrossingEvent> findByToState(SystemState state);
 }

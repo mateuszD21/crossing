@@ -24,7 +24,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
-    private static final int MAX_REQUESTS    = 30;
+    private static final int MAX_REQUESTS    = 200;
     private static final long TIME_WINDOW_MS = 60_000L; // 1 minuta
 
     private final Map<String, RequestCounter> requestCounts = new ConcurrentHashMap<>();

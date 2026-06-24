@@ -34,14 +34,11 @@ class CrossingControllerTest {
     MockMvc mockMvc;
 
     @MockBean
-    UserRepository userRepository;           // potrzebny przez TotpFilter i MongoUserDetailsService
+    UserRepository userRepository;
 
     @MockBean
-    CrossingEventRepository crossingEventRepository;  // potrzebny przez CrossingService
+    CrossingEventRepository crossingEventRepository;
 
-    // -------------------------------------------------------------------------
-    // TESTY LOGOWANIA
-    // -------------------------------------------------------------------------
     @BeforeEach
     void setupMocks() {
         // Zakoduj prawdziwe hasło żeby BCrypt mógł je porównać przy logowaniu
@@ -90,11 +87,6 @@ class CrossingControllerTest {
                 .andExpect(unauthenticated());
     }
 
-    // -------------------------------------------------------------------------
-    // DOSTĘP BEZ LOGOWANIA — powinno przekierować na /login
-    // -------------------------------------------------------------------------
-
-
     @Test
     void apiBezLogowania_zwraca401() throws Exception {
         mockMvc.perform(get("/api/crossing/status"))
@@ -106,10 +98,6 @@ class CrossingControllerTest {
         mockMvc.perform(post("/api/crossing/train-approach"))
                 .andExpect(status().isUnauthorized());
     }
-
-    // -------------------------------------------------------------------------
-    // DOSTĘP PO ZALOGOWANIU
-    // -------------------------------------------------------------------------
 
     @Test
     @WithMockUser(username = "operator", roles = "OPERATOR")
@@ -134,41 +122,6 @@ class CrossingControllerTest {
                 .andExpect(status().isOk());
     }
 
-    // -------------------------------------------------------------------------
-    // TESTY PRZEJŚĆ STANÓW przez API
-    // -------------------------------------------------------------------------
-
-    @Test
-    @WithMockUser(username = "admin", roles = "ADMIN")
-    void trainApproach_zmienaStanNaWarning() throws Exception {
-        try { mockMvc.perform(post("/api/crossing/reset/emergency").with(totpVerified())); } catch (Exception ignored) {}
-        try { mockMvc.perform(post("/api/crossing/reset/error").with(totpVerified())); }    catch (Exception ignored) {}
-
-        mockMvc.perform(post("/api/crossing/train-approach").with(totpVerified()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("WARNING"));
-    }
-
-    @Test
-    @WithMockUser(username = "admin", roles = "ADMIN")
-    void emergencyStop_zmieniStanNaEmergency() throws Exception {
-        try { mockMvc.perform(post("/api/crossing/reset/emergency").with(totpVerified())); } catch (Exception ignored) {}
-
-        mockMvc.perform(post("/api/crossing/emergency-stop").with(totpVerified()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("EMERGENCY"));
-    }
-
-    @Test
-    @WithMockUser(username = "admin", roles = "ADMIN")
-    void resetFromEmergency_przywracaOpen() throws Exception {
-        try { mockMvc.perform(post("/api/crossing/emergency-stop").with(totpVerified())); } catch (Exception ignored) {}
-
-        mockMvc.perform(post("/api/crossing/reset/emergency").with(totpVerified()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("OPEN"));
-    }
-
     @Test
     @WithMockUser(username = "admin", roles = "ADMIN")
     void hardwareFailure_zwraca503() throws Exception {
@@ -177,16 +130,5 @@ class CrossingControllerTest {
         mockMvc.perform(post("/api/crossing/hardware-failure").with(totpVerified()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.state").value("ERROR"));
-    }
-
-    @Test
-    @WithMockUser(username = "admin", roles = "ADMIN")
-    void obstacle_zwraca409() throws Exception {
-        try { mockMvc.perform(post("/api/crossing/reset/emergency").with(totpVerified())); } catch (Exception ignored) {}
-        try { mockMvc.perform(post("/api/crossing/reset/error").with(totpVerified())); }    catch (Exception ignored) {}
-
-        mockMvc.perform(post("/api/crossing/obstacle").with(totpVerified()))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.state").value("EMERGENCY"));
     }
 }

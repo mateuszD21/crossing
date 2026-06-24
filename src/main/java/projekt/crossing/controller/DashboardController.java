@@ -5,9 +5,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import projekt.crossing.dto.StatusResponse;
-import projekt.crossing.exception.HardwareFailureException;
-import projekt.crossing.exception.InvalidStateTransitionException;
-import projekt.crossing.exception.ObstacleDetectedException;
 import projekt.crossing.service.CrossingService;
 
 import static projekt.crossing.service.CrossingService.log;
